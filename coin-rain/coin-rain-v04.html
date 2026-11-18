@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>COIN RAIN v04 // pile up → drop the floor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --g:#53fc18; --g-dim:#2c8a10; --g-glow:rgba(83,252,24,.35);
+    --bg:#060906; --panel:#0b110b; --panel2:#101a10; --line:#1d2f1d;
+    --text:#d8ffd0; --dim:#6f9a66;
+  }
+  *{box-sizing:border-box; font-family:'Consolas','JetBrains Mono','Courier New',monospace;}
+  body{margin:0; background:var(--bg); color:var(--text); height:100vh; display:flex; overflow:hidden;}
+  body::before{content:''; position:fixed; inset:0; pointer-events:none; z-index:9;
+    background:repeating-linear-gradient(0deg,rgba(83,252,24,.02) 0 1px,transparent 1px 3px);}
+  #sidebar{width:312px; min-width:312px; background:var(--panel); border-right:1px solid var(--line);
+    overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px;}
+  #sidebar::-webkit-scrollbar{width:6px;} #sidebar::-webkit-scrollbar-thumb{background:var(--line);}
+  h1{font-size:16px; margin:0; color:var(--g); text-shadow:0 0 12px var(--g-glow); letter-spacing:2px;}
+  .sub{font-size:10px; color:var(--dim); margin-top:-6px; letter-spacing:1px;}
+  fieldset{border:1px solid var(--line); border-radius:4px; padding:10px; margin:0;
+    display:flex; flex-direction:column; gap:8px; background:linear-gradient(180deg,rgba(83,252,24,.03),transparent);}
+  legend{font-size:10px; letter-spacing:2px; color:var(--g); padding:0 6px;}
+  label{font-size:11px; display:flex; align-items:center; gap:8px; letter-spacing:.5px; color:var(--dim);}
+  label b{color:var(--text); font-weight:normal; min-width:74px;}
+  input[type=range]{flex:1; accent-color:var(--g); height:3px;}
+  input[type=number], input[type=text]{
+    background:#000; color:var(--g); border:1px solid var(--line); border-radius:3px;
+    padding:4px 6px; font-size:12px; width:64px; font-family:inherit;}
+  input[type=number]:focus, input[type=text]:focus{outline:none; border-color:var(--g); box-shadow:0 0 6px var(--g-glow);}
+  select{background:#000; color:var(--g); border:1px solid var(--line); border-radius:3px; padding:4px; font-family:inherit; font-size:11px;}
+  input[type=checkbox]{accent-color:var(--g);}
+  button{background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:3px;
+    padding:8px 10px; font-size:12px; cursor:pointer; font-family:inherit; letter-spacing:1px;}
+  button:hover{border-color:var(--g); color:var(--g);}
+  button.primary{background:var(--g); border-color:var(--g); color:#031202; font-weight:bold;
+    text-shadow:none; box-shadow:0 0 16px var(--g-glow);}
+  button.primary:hover{color:#000;}
+  button:disabled{opacity:.4; cursor:default;}
+  .row{display:flex; gap:6px;} .row>*{flex:1;}
+  button.mini{padding:2px 6px; font-size:10px; line-height:1; border-radius:2px; color:var(--dim);}
+  button.mini:hover{color:var(--g);}
+  .seg{display:flex; border:1px solid var(--line); border-radius:3px; overflow:hidden;}
+  .seg button{flex:1; border:none; border-radius:0; background:#000; color:var(--dim); padding:6px;}
+  .seg button.on{background:var(--g); color:#031202; font-weight:bold;}
+  #thumb{width:56px; height:56px; border:1px dashed var(--line); border-radius:3px; background:#000;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  #thumb img{max-width:100%; max-height:100%;}
+  #divider{width:6px; min-width:6px; cursor:col-resize; background:var(--line); position:relative;}
+  #divider:hover, #divider.dragging{background:var(--g); box-shadow:0 0 8px var(--g-glow);}
+  #stage{flex:1; display:flex; align-items:center; justify-content:center; padding:16px; overflow:hidden; position:relative;}
+  #canvasWrap{position:relative; border:1px solid var(--line); box-shadow:0 0 40px rgba(83,252,24,.08), 0 12px 50px rgba(0,0,0,.6);
+    background:
+      linear-gradient(rgba(83,252,24,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(83,252,24,.05) 1px, transparent 1px),
+      #0a0e0a;
+    background-size:40px 40px;}
+  canvas{display:block;}
+  #drop{position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(83,252,24,.1); border:2px dashed var(--g); font-size:16px; color:var(--g); pointer-events:none;}
+  #bar{height:6px; background:#000; border:1px solid var(--line); border-radius:3px; overflow:hidden; display:none;}
+  #barFill{height:100%; width:0%; background:var(--g); box-shadow:0 0 8px var(--g-glow);}
+  #ptxt{font-size:10px; color:var(--dim); letter-spacing:1px;}
+  #hud{position:absolute; top:10px; left:12px; font-size:10px; color:var(--g); opacity:.8;
+    letter-spacing:1px; pointer-events:none; text-shadow:0 0 8px var(--g-glow);}
+  .hint{font-size:10px; color:var(--dim); line-height:1.5; letter-spacing:.3px;}
+  #obsList{display:flex; flex-direction:column; gap:4px;}
+  #obsList button{text-align:left; padding:5px 8px; font-size:11px;}
+  #obsList button.on{border-color:var(--g); color:var(--g);}
+  #obsPanel{display:none; flex-direction:column; gap:8px;}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>▚ COIN RAIN v04_</h1>
+  <div class="sub">// pile up on the floor · then drop the floor</div>
+
+  <fieldset>
+    <legend>OBJECT</legend>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div id="thumb"><img id="thumbImg" alt=""></div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <button id="btnImport" class="primary">+ IMPORT OBJECT</button>
+        <button id="btnDefault">USE BUILT-IN ICON</button>
+      </div>
+    </div>
+    <div class="hint">PNG with transparency works best. Drag &amp; drop onto canvas also works.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>DUPLICATES</legend>
+    <label><b>COUNT</b><input type="range" id="count" min="1" max="5000" step="1" value="1000"><input type="number" id="countN" min="1" max="5000" value="1000"></label>
+    <label><b>SIZE px</b><input type="range" id="size" min="16" max="400" step="1" value="70"><input type="number" id="sizeN" min="16" max="400" value="70"></label>
+    <label><b>SIZE MODE</b>
+      <span class="seg" style="flex:1">
+        <button id="modeSame" class="on">SAME</button>
+        <button id="modeRandom">RANDOM</button>
+      </span>
+    </label>
+    <label id="varRow" style="display:none"><b>VARIANCE</b><input type="range" id="variance" min="0.05" max="0.9" step="0.05" value="0.5"><span id="varianceV" style="color:var(--g); font-size:11px; width:40px; text-align:right">±50%</span></label>
+    <div class="hint">Volume engine: settled coins freeze into the pile automatically, so only falling coins cost physics. Longer rain time = smoother at high counts.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>RAIN</legend>
+    <label><b>RAIN TIME s</b><input type="range" id="rainDur" min="0.1" max="30" step="0.1" value="6"><input type="number" id="rainDurN" min="0.1" max="30" step="0.1" value="6"></label>
+    <label><b>SPREAD %</b><input type="range" id="spread" min="10" max="100" step="1" value="90"><input type="number" id="spreadN" min="10" max="100" value="90"></label>
+    <label><b>GRAVITY</b><input type="range" id="gravity" min="0.1" max="3" step="0.05" value="1"><input type="number" id="gravityN" min="0.1" max="3" step="0.05" value="1"></label>
+    <label><b>BOUNCE</b><input type="range" id="bounce" min="0" max="1" step="0.01" value="0.45"><input type="number" id="bounceN" min="0" max="1" step="0.01" value="0.45"></label>
+    <label><b>SPIN</b><input type="range" id="spin" min="0" max="1" step="0.01" value="0.4"><input type="number" id="spinN" min="0" max="1" step="0.01" value="0.4"></label>
+    <label><b>OVERSHOOT</b><input type="checkbox" id="overshoot" checked> <span class="hint">scale-pop on spawn</span></label>
+    <label><b>3D DEPTH</b><input type="checkbox" id="depth" checked> <span class="hint">overflow piles behind (room)</span></label>
+    <label><b>SHADE</b><input type="range" id="shade" min="0" max="100" step="1" value="30"><input type="number" id="shadeN" min="0" max="100" value="30"></label>
+    <div class="hint">darkness per depth layer, 0 = off</div>
+    <label><b>PILE UP</b><input type="checkbox" id="floor" checked> <span class="hint">floor on / off</span></label>
+    <label><b>WALLS</b><input type="checkbox" id="walls" checked></label>
+    <label><b>SEED</b><input type="number" id="seed" value="1337" style="width:80px"><button id="btnSeed" style="padding:4px 8px">⟳</button></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>OBSTACLES</legend>
+    <button id="btnAddObs" class="primary">+ ADD OBSTACLE</button>
+    <div id="obsList"></div>
+    <div id="obsPanel">
+      <label><b>X</b><input type="range" id="obsX" min="0" max="1920" step="1" value="0"><input type="number" id="obsXN" value="0"></label>
+      <label><b>Y</b><input type="range" id="obsY" min="0" max="1080" step="1" value="0"><input type="number" id="obsYN" value="0"></label>
+      <label><b>WIDTH px</b><input type="range" id="obsW" min="8" max="2000" step="1" value="200"><input type="number" id="obsWN" value="200"></label>
+      <label><b>HEIGHT px</b><input type="range" id="obsH" min="8" max="2000" step="1" value="200"><input type="number" id="obsHN" value="200"></label>
+      <label><b>LOCK</b><input type="checkbox" id="obsLock" checked> <span class="hint">keep aspect ratio</span></label>
+      <label><b>ROTATION°</b><input type="range" id="obsRot" min="-180" max="180" step="1" value="0"><input type="number" id="obsRotN" value="0"></label>
+      <label><b>VISIBLE</b><input type="checkbox" id="obsVis" checked> <span class="hint">in export (off = invisible collider)</span></label>
+      <label><b>FALLS</b><input type="checkbox" id="obsFalls"> <span class="hint">with floor drop</span></label>
+      <button id="btnObsDel">✕ DELETE OBSTACLE</button>
+    </div>
+    <div class="hint">PNG with transparency: collider is traced from the alpha silhouette (convex hull). Click to select, drag to move, square handle = resize (corner), round handle = rotate, Delete key removes. Editing resets the sim.</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>RUN</legend>
+    <button id="btnRain" class="primary">☔ MAKE IT RAIN</button>
+    <button id="btnDrop">⬇ DROP FLOOR NOW</button>
+    <div class="row">
+      <button id="btnPause">‖ PAUSE</button>
+      <button id="btnReset">✕ CLEAR</button>
+    </div>
+    <button id="btnDefaults">⟲ RESET ALL SETTINGS</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>EXPORT PNG SEQUENCE</legend>
+    <label><b>CANVAS</b><select id="preset" style="flex:1">
+      <option value="1920x1080" selected>1920 × 1080</option>
+      <option value="1080x1920">1080 × 1920 (vertical)</option>
+      <option value="1080x1080">1080 × 1080</option>
+      <option value="1280x720">1280 × 720</option>
+      <option value="custom">CUSTOM…</option>
+    </select></label>
+    <label id="customRow" style="display:none"><b>W × H</b>
+      <input type="number" id="customW" value="1920" min="16" max="8192">
+      <input type="number" id="customH" value="1080" min="16" max="8192">
+      <button id="btnApplySize" style="padding:4px 8px">SET</button>
+    </label>
+    <label><b>FPS</b><input type="number" id="fps" value="30" min="1" max="120"></label>
+    <label><b>LENGTH s</b><input type="number" id="expDur" value="12" min="0.5" step="0.5" max="120"></label>
+    <label><b>AUTO DROP</b><input type="checkbox" id="autoDrop" checked> <span class="hint">drop floor mid-sequence</span></label>
+    <label><b>DROP AT s</b><input type="range" id="dropT" min="0.5" max="60" step="0.5" value="7"><input type="number" id="dropTN" min="0.5" max="60" step="0.5" value="7"></label>
+    <div class="hint">Coins rain + pile up, then at DROP AT the floor vanishes and the whole pile falls out of frame. Applies to preview too.</div>
+    <label><b>NAME</b><input type="text" id="prefix" value="coin" style="width:110px"></label>
+    <button id="btnExport" class="primary">⬇ EXPORT .ZIP</button>
+    <div id="bar"><div id="barFill"></div></div>
+    <div id="ptxt"></div>
+    <div class="hint">Deterministic: export replays the exact same rain (same seed) with transparent background.</div>
+  </fieldset>
+</div>
+
+<div id="divider" title="drag to resize panel"></div>
+
+<div id="stage">
+  <div id="canvasWrap">
+    <canvas id="canvas"></canvas>
+    <div id="hud"></div>
+    <div id="drop">DROP IMAGE TO IMPORT</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const { Engine, World, Bodies, Body, Sleeping, Vertices } = Matter;
+  const $ = id => document.getElementById(id);
+
+  // ---------------- state ----------------
+  let W = 1920, H = 1080;
+  const canvas = $('canvas'), ctx = canvas.getContext('2d');
+  const engine = Engine.create({ enableSleeping: true });
+  engine.positionIterations = 10; engine.velocityIterations = 6;
+
+  let objImg = null;
+  let sprites = [];               // pre-shaded sprite per depth layer (fast: no canvas filters)
+  let spriteAR = 1;
+  let plan = [];
+  let coins = [];                 // live coins {body, size, spawnT, layer, slept}
+  let planIdx = 0, simT = 0, running = false, exporting = false;
+  let bounds = [];
+  let sediment = [];              // per-layer bitmap of frozen coins
+  let frozenCoins = [];           // frozen coin objects — bodies stay in world as static colliders
+  let bakedCount = 0;
+  let floorDropped = false;       // true after the floor has been dropped mid-run
+  let obstacles = [];             // user obstacles: static colliders traced from image alpha
+  let selId = null, obsSeq = 0;
+
+  // volume engine tuning
+  const SLEEP_BAKE = 0.5;         // s asleep before a coin freezes into the pile
+  const LIVE_CAP = 450;           // max live physics bodies; slowest settle early beyond this
+  const MAXL = 6;
+  let minLiveR = 999;             // smallest coin radius in the plan → drives substepping
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------------- depth layers ----------------
+  let numLayers = 1;
+  const perspScale = d => Math.pow(0.8, d);
+  const roomComp  = d => Math.pow(0.92, d);
+  const floorYAt  = d => H - d * H * 0.05;
+  const shadeAt   = d => Math.max(0.2, 1 - d * (parseFloat($('shade').value) / 100));
+
+  // ---------------- built-in icon (user-provided SVG, upscaled intrinsic size for crisp sprites) ----------------
+  const BUILTIN_SVG = '<svg width="264" height="256" viewBox="0 0 33 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.3464 0.122371L6.14881 3.50798C5.72616 3.67114 5.36389 3.97706 5.14251 4.36456L0.251897 12.9509C0.0305111 13.3588 -0.0499929 13.8075 0.030511 14.2766L1.72109 24.0255C1.8016 24.4742 2.04312 24.8821 2.38526 25.1881L9.87211 31.5513C10.2142 31.8369 10.657 32 11.1199 32H20.9012C21.3641 32 21.7867 31.8369 22.149 31.5513L29.6357 25.1881C29.9779 24.9025 30.2195 24.4742 30.2999 24.0255L31.9906 14.2766C32.0711 13.8279 31.9906 13.3588 31.7691 12.9509L26.8786 4.36456C26.6572 3.95666 26.2948 3.67114 25.8723 3.50798L16.6546 0.122371C16.2319 -0.0407903 15.769 -0.0407903 15.3262 0.122371H15.3464Z" fill="url(#p0)"/><path fill-rule="evenodd" clip-rule="evenodd" d="M25.7919 26.0038L21.4445 29.7157C21.0623 30.0422 20.5792 30.2053 20.076 30.2053H11.7036C11.2005 30.2053 10.7175 30.0422 10.3351 29.7157L6.69226 26.6158L7.8797 25.2491L21.6258 21.7617L25.7919 25.9834V26.0038Z" fill="url(#p1)"/><path fill-rule="evenodd" clip-rule="evenodd" d="M29.2333 19.8649L28.6899 22.9855C28.6095 23.4748 28.3479 23.9235 27.9655 24.2499L25.9126 25.9834L21.7465 21.7617L29.2535 19.8649H29.2333Z" fill="url(#p2)"/><path fill-rule="evenodd" clip-rule="evenodd" d="M30.139 14.6234L29.2333 19.8649L21.7263 21.7617L15.9904 15.949L28.0057 9.87129L29.8773 13.1753C30.1188 13.6036 30.2195 14.1135 30.1188 14.603L30.139 14.6234Z" fill="url(#p3)"/><path fill-rule="evenodd" clip-rule="evenodd" d="M24.3225 4.79288L8.84573 8.70875L6.18912 6.0166L6.28974 5.81265C6.53126 5.38435 6.93377 5.05802 7.39667 4.87447L15.2659 1.97835C15.7288 1.81519 16.232 1.81519 16.6949 1.97835L24.3025 4.79288H24.3225Z" fill="url(#p4)"/><path d="M28.0057 9.89165L15.9905 15.9694L25.2283 5.26193C25.4094 5.40471 25.5703 5.60866 25.6912 5.833L28.0057 9.89165Z" fill="url(#p5)"/><path d="M15.9905 15.9694L3.21048 22.4347L1.84191 14.6233C1.7614 14.1338 1.84191 13.624 2.08342 13.1957L3.935 9.95282L8.82562 8.72913L15.9905 15.9898V15.9694Z" fill="url(#p6)"/><path d="M8.84573 8.70875L3.95514 9.93243L6.18912 6.0166L8.84573 8.70875Z" fill="url(#p7)"/><path d="M25.2283 5.26193L15.9905 15.9694L8.82562 8.70873L24.3025 4.79288L24.5641 4.87443C24.8056 4.95602 25.007 5.09877 25.2081 5.26193H25.2283Z" fill="url(#p8)"/><path d="M21.7263 21.7617L7.98032 25.2493L15.9905 15.9694L21.7263 21.7617Z" fill="url(#p9)"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.67843 6.46524H13.9175V10.687H15.9904V8.58633H18.0634V6.48563H24.3025V12.8081H22.2296V14.9088H20.1365V17.0095H22.2296V19.1102H24.3025V25.4328H18.0634V23.3321H15.9904V21.2313H13.9175V25.4532H7.67843V6.46524Z" fill="black"/><defs><linearGradient id="p0" x1="-0.00974088" y1="16.0102" x2="32.0106" y2="16.0102" gradientUnits="userSpaceOnUse"><stop offset="0.02" stop-color="#FFFF00"/><stop offset="0.4" stop-color="#53FC18"/><stop offset="1" stop-color="#01FFFF"/></linearGradient><linearGradient id="p1" x1="-11.1632" y1="-21.8359" x2="42.4645" y2="-21.8359" gradientUnits="userSpaceOnUse"><stop stop-color="#53FC18"/><stop offset="0.99" stop-color="#00BA61"/></linearGradient><linearGradient id="p2" x1="-93.1261" y1="-20.2136" x2="43.46" y2="-20.2136" gradientUnits="userSpaceOnUse"><stop stop-color="#53FC18"/><stop offset="0.99" stop-color="#00FF8C"/></linearGradient><linearGradient id="p3" x1="-36.1422" y1="16.5678" x2="36.3434" y2="16.5678" gradientUnits="userSpaceOnUse"><stop stop-color="#00C6C1"/><stop offset="0.99" stop-color="#00FF8C"/></linearGradient><linearGradient id="p4" x1="-10.9291" y1="66.0475" x2="45.6156" y2="66.0475" gradientUnits="userSpaceOnUse"><stop stop-color="#01FFFF" stop-opacity="0"/><stop offset="1" stop-color="white" stop-opacity="0.6"/></linearGradient><linearGradient id="p5" x1="-42.6153" y1="32.0004" x2="42.7222" y2="32.0004" gradientUnits="userSpaceOnUse"><stop stop-color="#53FC18"/><stop offset="0.99" stop-color="#00FF8C"/></linearGradient><linearGradient id="p6" x1="-4.04024" y1="16.9762" x2="68.2244" y2="16.9762" gradientUnits="userSpaceOnUse"><stop stop-color="#00C6C1"/><stop offset="0.99" stop-color="#00FF8C"/></linearGradient><linearGradient id="p7" x1="-25.8962" y1="81.5838" x2="183.761" y2="81.5838" gradientUnits="userSpaceOnUse"><stop stop-color="#53FC18"/><stop offset="0.99" stop-color="#00FF8C"/></linearGradient><linearGradient id="p8" x1="-17.1526" y1="32.0876" x2="45.2818" y2="32.0876" gradientUnits="userSpaceOnUse"><stop stop-color="#53FC18"/><stop offset="0.99" stop-color="#00BA61"/></linearGradient><linearGradient id="p9" x1="-18.5901" y1="-0.0157363" x2="56.0027" y2="-0.0157363" gradientUnits="userSpaceOnUse"><stop stop-color="#01FFFF" stop-opacity="0"/><stop offset="1" stop-color="white" stop-opacity="0.6"/></linearGradient></defs></svg>';
+  function makeDefaultCoin() {
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(BUILTIN_SVG);
+    return img;
+  }
+
+  function setObject(img) {
+    objImg = img;
+    $('thumbImg').src = img.src;
+    if (img.complete && img.naturalWidth) buildSprites();
+    else img.onload = buildSprites;
+  }
+
+  // pre-render one shaded sprite per depth layer — no per-draw filters = fast
+  function buildSprites() {
+    sprites = [];
+    if (!objImg || !objImg.naturalWidth) return;
+    const iw = objImg.naturalWidth, ih = objImg.naturalHeight;
+    spriteAR = iw / ih;
+    const S = 256;
+    let sw = S, sh = S;
+    if (spriteAR > 1) sh = S / spriteAR; else sw = S * spriteAR;
+    sw = Math.max(1, Math.round(sw)); sh = Math.max(1, Math.round(sh));
+    for (let d = 0; d < MAXL; d++) {
+      const cv = document.createElement('canvas');
+      cv.width = sw; cv.height = sh;
+      const g = cv.getContext('2d');
+      g.drawImage(objImg, 0, 0, sw, sh);
+      const dark = 1 - shadeAt(d);
+      if (d > 0 && dark > 0) {
+        g.globalCompositeOperation = 'source-atop';
+        g.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`;
+        g.fillRect(0, 0, sw, sh);
+        g.globalCompositeOperation = 'source-over';
+      }
+      sprites.push(cv);
+    }
+  }
+  $('shade').addEventListener('input', buildSprites);
+  $('shadeN').addEventListener('input', buildSprites);
+
+  // ---------------- linked slider + number ----------------
+  function link(rid, nid, cb) {
+    const r = $(rid), n = $(nid);
+    r.addEventListener('input', () => { n.value = r.value; cb && cb(parseFloat(r.value)); });
+    n.addEventListener('input', () => {
+      let v = parseFloat(n.value);
+      if (isNaN(v)) return;
+      v = Math.min(parseFloat(r.max), Math.max(parseFloat(r.min), v));
+      r.value = v; cb && cb(v);
+    });
+  }
+  link('count', 'countN'); link('size', 'sizeN'); link('rainDur', 'rainDurN');
+  link('spread', 'spreadN'); link('gravity', 'gravityN', v => engine.gravity.y = v);
+  link('bounce', 'bounceN'); link('spin', 'spinN'); link('shade', 'shadeN');
+  link('dropT', 'dropTN');
+  $('variance').oninput = () => $('varianceV').textContent = '±' + Math.round($('variance').value * 100) + '%';
+
+  let randomSize = false;
+  $('modeSame').onclick = () => setMode(false);
+  $('modeRandom').onclick = () => setMode(true);
+  function setMode(rnd) {
+    randomSize = rnd;
+    $('modeSame').classList.toggle('on', !rnd);
+    $('modeRandom').classList.toggle('on', rnd);
+    $('varRow').style.display = rnd ? 'flex' : 'none';
+  }
+  $('btnSeed').onclick = () => { $('seed').value = Math.floor(Math.random() * 99999); };
+
+  // ---------------- bounds (shared by ALL depth layers) ----------------
+  function rebuildBounds() {
+    for (const b of bounds) World.remove(engine.world, b);
+    bounds = [];
+    const T = 400;
+    // category/mask all-bits: one floor + one set of walls collides every layer
+    const opt = { isStatic: true, friction: 0.4,
+      collisionFilter: { category: 0xFFFFFFFF, mask: 0xFFFFFFFF } };
+    if ($('floor').checked && !floorDropped)
+      bounds.push(Bodies.rectangle(W / 2, H + T / 2, W * 4, T, opt));
+    if ($('walls').checked) {
+      bounds.push(Bodies.rectangle(-T / 2, H / 2 - H * 2, T, H * 6, opt));
+      bounds.push(Bodies.rectangle(W + T / 2, H / 2 - H * 2, T, H * 6, opt));
+    }
+    for (const b of bounds) World.add(engine.world, b);
+  }
+  $('floor').onchange = $('walls').onchange = rebuildBounds;
+
+  // ---------------- plan ----------------
+  function buildPlan() {
+    const rnd = rng(parseInt($('seed').value) || 0);
+    const count = parseInt($('count').value);
+    const baseSize = parseFloat($('size').value);
+    const varr = randomSize ? parseFloat($('variance').value) : 0;
+    const rainDur = parseFloat($('rainDur').value);
+    const spread = parseFloat($('spread').value) / 100;
+    const spinAmt = parseFloat($('spin').value);
+    plan = [];
+    for (let i = 0; i < count; i++) {
+      const size = baseSize * (1 + (rnd() * 2 - 1) * varr);
+      plan.push({
+        t: rnd() * rainDur,
+        x: W / 2 + (rnd() - 0.5) * W * spread,
+        size,
+        vx: (rnd() - 0.5) * 4,
+        vy: 2 + rnd() * 6,
+        av: (rnd() - 0.5) * 0.6 * spinAmt,
+        angle: rnd() * Math.PI * 2,
+        layer: 0
+      });
+    }
+    // assign layers BEFORE sorting by time: generation order is random with
+    // respect to spawn time, so every layer's coins are spread across the
+    // whole rain — all piles (front and back) fall and grow simultaneously.
+    // Capacity still fills front-first, overflow behind;
+    // anything beyond ALL layers' capacity spreads evenly so no single
+    // back layer becomes an oversized tower
+    if ($('depth').checked) {
+      const caps = [], used = [];
+      for (let d = 0; d < MAXL; d++) {
+        caps.push(W * H * 0.62); // same room for every layer (shared floor/walls)
+        used.push(0);
+      }
+      const foot = (p, d) => {
+        const s = p.size * perspScale(d);
+        return s * s;
+      };
+      let d = 0, maxUsed = 0;
+      const overflow = [];
+      for (const p of plan) {
+        while (d < MAXL && used[d] + foot(p, d) > caps[d]) d++;
+        if (d < MAXL) {
+          p.layer = d;
+          used[d] += foot(p, d);
+          if (d + 1 > maxUsed) maxUsed = d + 1;
+        } else overflow.push(p);
+      }
+      if (overflow.length) {
+        maxUsed = MAXL;
+        let rr = 0;
+        for (const p of overflow) { p.layer = rr; rr = (rr + 1) % MAXL; }
+      }
+      numLayers = Math.max(1, maxUsed);
+    } else numLayers = 1;
+    plan.sort((a, b) => a.t - b.t);
+    minLiveR = 999;
+    for (const p of plan) {
+      const r = p.size * perspScale(p.layer) / 2;
+      if (r < minLiveR) minLiveR = r;
+    }
+    rebuildBounds();
+  }
+
+  function spawn(p) {
+    const d = p.layer, s = perspScale(d);
+    const px = p.x;
+    // each depth layer packs densely within itself (solid front pile, no holes);
+    // deeper layers sit visually behind it, darker and smaller
+    const cat = 1 << d;
+    const body = Bodies.circle(px, -p.size * s, p.size * s / 2, {
+      restitution: parseFloat($('bounce').value),
+      friction: 0.25, frictionAir: 0.008, density: 0.001,
+      collisionFilter: { category: cat, mask: cat }
+    });
+    Body.setAngle(body, p.angle);
+    Body.setVelocity(body, { x: p.vx * s, y: p.vy });
+    Body.setAngularVelocity(body, p.av);
+    World.add(engine.world, body);
+    coins.push({ body, size: p.size * s, spawnT: simT, layer: d, slept: 0 });
+  }
+
+  function clearCoins() {
+    for (const c of coins) World.remove(engine.world, c.body);
+    for (const c of frozenCoins) World.remove(engine.world, c.body);
+    coins = []; frozenCoins = []; planIdx = 0; simT = 0;
+    sediment = []; bakedCount = 0;
+    if (floorDropped) { floorDropped = false; rebuildBounds(); }
+    rebuildObstacles();
+  }
+
+  // ---------------- volume engine: freeze settled coins ----------------
+  const OD = 0.38, C1 = 2.2, C3 = C1 + 1;
+  function spawnScale(age) {
+    if (!$('overshoot').checked) return 1;
+    if (age >= OD) return 1;
+    const t = age / OD;
+    return 1 + C3 * Math.pow(t - 1, 3) + C1 * Math.pow(t - 1, 2);
+  }
+
+  function drawCoinTo(c, coin) {
+    const spr = sprites[coin.layer] || sprites[0];
+    if (!spr) return;
+    const b = coin.body;
+    const s = spawnScale(simT - coin.spawnT);
+    if (s <= 0) return;
+    let dw = coin.size * s, dh = coin.size * s;
+    if (spriteAR > 1) dh = dw / spriteAR; else dw = dh * spriteAR;
+    c.save();
+    c.translate(b.position.x, b.position.y);
+    c.rotate(b.angle);
+    c.drawImage(spr, -dw / 2, -dh / 2, dw, dh);
+    c.restore();
+  }
+
+  function bakeCoin(coin) {
+    const d = coin.layer;
+    if (!sediment[d]) {
+      sediment[d] = document.createElement('canvas');
+      sediment[d].width = W; sediment[d].height = H;
+    }
+    drawCoinTo(sediment[d].getContext('2d'), coin);
+    // keep the body as a static collider — coins above stay supported,
+    // new coins still land on the frozen pile
+    Body.setStatic(coin.body, true);
+    frozenCoins.push(coin);
+    bakedCount++;
+  }
+
+  // ---------------- floor drop: pile falls out of frame ----------------
+  function doDropFloor() {
+    if (floorDropped) return;
+    floorDropped = true;
+    rebuildBounds();                       // rebuild without the floor
+    // thaw every frozen coin back to dynamic so the whole pile falls
+    for (const c of frozenCoins) {
+      Body.setStatic(c.body, false);
+      Sleeping.set(c.body, false);
+      c.slept = 0; c.slow = 0;
+      coins.push(c);
+    }
+    frozenCoins = [];
+    sediment = []; bakedCount = 0;
+    // obstacles flagged "falls" become dynamic and drop with the pile
+    for (const o of obstacles) {
+      if (o.falls && o.body && !o.gone) {
+        Body.setStatic(o.body, false);
+        Sleeping.set(o.body, false);
+      }
+    }
+    // wake sleeping live coins too, or they'd hover where the pile was
+    for (const c of coins) { Sleeping.set(c.body, false); c.slept = 0; c.slow = 0; }
+  }
+
+  function freezeSettled(dt) {
+    // 1) freeze coins that have slept long enough (or fell off-world)
+    for (let i = coins.length - 1; i >= 0; i--) {
+      const c = coins[i];
+      if (c.body.position.y > H + 2000) {
+        World.remove(engine.world, c.body);
+        coins.splice(i, 1);
+        continue;
+      }
+      if (c.body.isSleeping) {
+        c.slept += dt;
+        if (c.slept >= SLEEP_BAKE && simT - c.spawnT > OD) { bakeCoin(c); coins.splice(i, 1); continue; }
+      } else c.slept = 0;
+      // sustained-slow tracker: a coin hovering mid-air can't stay slow
+      // (gravity accelerates it), so only truly resting coins accumulate
+      if (c.body.speed < 1.5 && Math.abs(c.body.angularSpeed) < 0.05) c.slow = (c.slow || 0) + dt;
+      else c.slow = 0;
+    }
+    // 2) live cap: if too many active bodies, settle coins that have been
+    // at rest for a sustained period (never mid-air / mid-bounce ones)
+    if (coins.length > LIVE_CAP) {
+      const idle = [];
+      for (let i = 0; i < coins.length; i++) {
+        const c = coins[i];
+        if ((c.slow || 0) > 0.6 && simT - c.spawnT > OD) idle.push(i);
+      }
+      let excess = coins.length - LIVE_CAP;
+      for (let k = idle.length - 1; k >= 0 && excess > 0; k--, excess--) {
+        bakeCoin(coins[idle[k]]);
+        coins.splice(idle[k], 1);
+      }
+    }
+  }
+
+  // ---------------- run controls ----------------
+  $('btnRain').onclick = () => {
+    if (!objImg) setObject(makeDefaultCoin());
+    clearCoins(); buildPlan();
+    running = true;
+    $('btnPause').textContent = '‖ PAUSE';
+  };
+  $('btnPause').onclick = () => {
+    running = !running;
+    $('btnPause').textContent = running ? '‖ PAUSE' : '▶ RESUME';
+  };
+  $('btnReset').onclick = () => { clearCoins(); running = false; $('btnPause').textContent = '‖ PAUSE'; };
+  $('btnDrop').onclick = () => { doDropFloor(); running = true; $('btnPause').textContent = '‖ PAUSE'; };
+  $('btnImport').onclick = () => fileInput.click();
+  $('btnDefault').onclick = () => setObject(makeDefaultCoin());
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = 'image/*';
+  fileInput.onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); fileInput.value = ''; };
+  function loadFile(f) {
+    if (!f.type.startsWith('image/')) return;
+    const img = new Image();
+    img.onload = () => setObject(img);
+    img.src = URL.createObjectURL(f);
+  }
+  const wrap = $('canvasWrap');
+  wrap.addEventListener('dragover', e => { e.preventDefault(); $('drop').style.display = 'flex'; });
+  wrap.addEventListener('dragleave', () => $('drop').style.display = 'none');
+  wrap.addEventListener('drop', e => {
+    e.preventDefault(); $('drop').style.display = 'none';
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  // ---------------- simulation step ----------------
+  function stepSim(dtMs) {
+    simT += dtMs / 1000;
+    while (planIdx < plan.length && plan[planIdx].t <= simT) spawn(plan[planIdx++]);
+    if ($('autoDrop').checked && !floorDropped && simT >= parseFloat($('dropT').value))
+      doDropFloor();
+    // small coins need smaller physics steps or they tunnel into each other
+    const sub = minLiveR < 14 ? 4 : minLiveR < 22 ? 3 : minLiveR < 36 ? 2 : 1;
+    const stepMs = dtMs / sub;
+    for (let s = 0; s < sub; s++) {
+      // speed clamp: nothing may travel more than ~90% of its radius per step
+      for (const c of coins) {
+        const vmax = (c.body.circleRadius * 0.9) / (stepMs / 1000);
+        const sp = c.body.speed;
+        if (sp > vmax) {
+          const k = vmax / sp;
+          Body.setVelocity(c.body, { x: c.body.velocity.x * k, y: c.body.velocity.y * k });
+        }
+      }
+      Engine.update(engine, stepMs);
+    }
+    for (const o of obstacles) {
+      if (o.falls && floorDropped && !o.gone && o.body && o.body.position.y > H + 3000) {
+        World.remove(engine.world, o.body); o.gone = true;
+      }
+    }
+    freezeSettled(dtMs / 1000);
+  }
+
+  // ---------------- render ----------------
+  function drawObstacles(c, forExport) {
+    for (const o of obstacles) {
+      if (o.gone || !o.body || (forExport && !o.visible)) continue;
+      const b = o.body;
+      c.save();
+      if (!forExport && !o.visible) c.globalAlpha = 0.35;   // ghost in preview only
+      c.translate(b.position.x, b.position.y);
+      c.rotate(b.angle);
+      c.scale(o.sw, o.sh);
+      c.drawImage(o.img, -o.iw / 2 - o.cx, -o.ih / 2 - o.cy);
+      c.restore();
+    }
+  }
+
+  function drawScene(c, forExport) {
+    c.clearRect(0, 0, W, H);
+    if (!sprites.length) return;
+    // bucket live coins by layer (no sort, no filters)
+    const buckets = [];
+    for (const coin of coins) (buckets[coin.layer] || (buckets[coin.layer] = [])).push(coin);
+    const top = Math.max(numLayers, sediment.length);
+    for (let d = top - 1; d >= 0; d--) {
+      // obstacles sit between the back layers and the front layer
+      if (d === 0) drawObstacles(c, forExport);
+      if (sediment[d]) c.drawImage(sediment[d], 0, 0);
+      const arr = buckets[d];
+      if (arr) for (const coin of arr) drawCoinTo(c, coin);
+    }
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(now - last, 50); last = now;
+    if (running && !exporting) stepSim(dt);
+    if (!exporting) {
+      drawScene(ctx);
+      drawOverlay(ctx);
+      $('hud').textContent =
+        `T+${simT.toFixed(2)}s  //  ${planIdx}/${plan.length || 0} spawned · ${coins.length} live · ${bakedCount} frozen  //  FLOOR ${floorDropped ? 'DROPPED' : 'ON'}  //  ${W}×${H}`;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---------------- export ----------------
+  const toBlob = c => new Promise(res => c.toBlob(res, 'image/png'));
+
+  $('btnExport').onclick = async () => {
+    if (!objImg) setObject(makeDefaultCoin());
+    if (exporting) return;
+    exporting = true; running = false;
+    clearCoins(); buildPlan();
+
+    const fps = Math.max(1, Math.min(120, parseInt($('fps').value) || 30));
+    const dur = Math.max(0.5, Math.min(120, parseFloat($('expDur').value) || 10));
+    const prefix = ($('prefix').value || 'coin').replace(/[^\w\-]/g, '_');
+    const n = Math.round(fps * dur);
+    const zip = new JSZip();
+    const bar = $('bar'), fill = $('barFill'), txt = $('ptxt');
+    bar.style.display = 'block'; $('btnExport').disabled = true;
+
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const octx = off.getContext('2d');
+
+    try {
+      for (let f = 0; f < n; f++) {
+        drawScene(octx, true);
+        zip.file(`${prefix}_${String(f).padStart(4, '0')}.png`, await toBlob(off));
+        stepSim(1000 / fps);
+        if (f % 5 === 0 || f === n - 1) {
+          fill.style.width = (f / n * 85) + '%';
+          txt.textContent = `> RENDER ${f + 1}/${n}`;
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+      txt.textContent = '> ZIP…';
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' },
+        m => { fill.style.width = (85 + m.percent * 0.15) + '%'; });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${prefix}_${W}x${H}_${fps}fps.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      txt.textContent = `> DONE — ${n} FRAMES @ ${fps}FPS`;
+    } catch (err) {
+      txt.textContent = '> EXPORT FAILED: ' + err.message;
+    }
+    fill.style.width = '100%';
+    $('btnExport').disabled = false;
+    exporting = false;
+    clearCoins(); buildPlan(); running = true;
+  };
+
+  // ---------------- canvas sizing ----------------
+  function fitCanvas() {
+    canvas.width = W; canvas.height = H;
+    const stage = $('stage');
+    const s = Math.min((stage.clientWidth - 36) / W, (stage.clientHeight - 36) / H, 1);
+    canvas.style.width = (W * s) + 'px';
+    canvas.style.height = (H * s) + 'px';
+    rebuildBounds();
+  }
+  function setCanvasSize(w, h) {
+    const ow = W, oh = H;
+    W = Math.max(16, Math.min(8192, w || W));
+    H = Math.max(16, Math.min(8192, h || H));
+    for (const o of obstacles) { o.x *= W / ow; o.y *= H / oh; }
+    fitCanvas(); clearCoins();
+    updateObsRanges(); syncPanel();
+  }
+  $('preset').onchange = e => {
+    const custom = e.target.value === 'custom';
+    $('customRow').style.display = custom ? 'flex' : 'none';
+    if (custom) {
+      $('customW').value = W; $('customH').value = H;
+    } else {
+      const [w, h] = e.target.value.split('x').map(Number);
+      setCanvasSize(w, h);
+    }
+  };
+  $('btnApplySize').onclick = () =>
+    setCanvasSize(parseInt($('customW').value), parseInt($('customH').value));
+  window.addEventListener('resize', fitCanvas);
+
+  // ---------------- reset all settings ----------------
+  const DEFAULTS = {
+    count: 1000, size: 70, variance: 0.5, rainDur: 6, spread: 90,
+    gravity: 1, bounce: 0.45, spin: 0.4, shade: 30, seed: 1337,
+    fps: 30, expDur: 12, prefix: 'coin', dropT: 7
+  };
+  $('btnDefaults').onclick = () => {
+    $('autoDrop').checked = true;
+    for (const k of ['count', 'size', 'rainDur', 'spread', 'gravity', 'bounce', 'spin', 'shade', 'dropT']) {
+      $(k).value = DEFAULTS[k];
+      $(k + 'N').value = DEFAULTS[k];
+    }
+    $('variance').value = DEFAULTS.variance;
+    $('varianceV').textContent = '±' + Math.round(DEFAULTS.variance * 100) + '%';
+    $('seed').value = DEFAULTS.seed;
+    $('fps').value = DEFAULTS.fps;
+    $('expDur').value = DEFAULTS.expDur;
+    $('prefix').value = DEFAULTS.prefix;
+    $('overshoot').checked = true;
+    $('depth').checked = true;
+    $('floor').checked = true;
+    $('walls').checked = true;
+    numLayers = 1;
+    setMode(false);
+    engine.gravity.y = DEFAULTS.gravity;
+    $('preset').value = '1920x1080';
+    $('customRow').style.display = 'none';
+    setCanvasSize(1920, 1080);
+    buildSprites();
+  };
+
+  // ---------------- resizable control panel ----------------
+  (() => {
+    const divider = $('divider'), sidebar = $('sidebar');
+    let dragging = false;
+    divider.addEventListener('mousedown', e => {
+      dragging = true;
+      divider.classList.add('dragging');
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const w = Math.max(280, Math.min(window.innerWidth * 0.6, e.clientX));
+      sidebar.style.width = w + 'px';
+      sidebar.style.minWidth = w + 'px';
+      fitCanvas();
+    });
+    window.addEventListener('mouseup', () => {
+      dragging = false;
+      divider.classList.remove('dragging');
+    });
+  })();
+
+  // ---------------- per-variable reset buttons ----------------
+  for (const k of ['count', 'size', 'variance', 'rainDur', 'spread', 'gravity', 'bounce', 'spin', 'shade']) {
+    const r = $(k);
+    if (!r) continue;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'mini';
+    btn.textContent = '⟲'; btn.title = 'reset to default';
+    btn.onclick = () => {
+      r.value = DEFAULTS[k];
+      const n = $(k + 'N');
+      if (n) n.value = DEFAULTS[k];
+      r.dispatchEvent(new Event('input'));  // syncs linked field, gravity, sprites, labels
+    };
+    r.closest('label').appendChild(btn);
+  }
+
+  // ---------------- obstacles ----------------
+  const selObs = () => obstacles.find(o => o.id === selId);
+
+  function convexHull(pts) {
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) {
+      while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop();
+      lo.push(q);
+    }
+    for (let i = p.length - 1; i >= 0; i--) {
+      const q = p[i];
+      while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop();
+      up.push(q);
+    }
+    lo.pop(); up.pop();
+    return lo.concat(up);
+  }
+
+  // drop near-collinear vertices (keeps polygon convex, keeps SAT cheap)
+  function simplifyHull(h, tol) {
+    let changed = true;
+    while (changed && h.length > 4) {
+      changed = false;
+      for (let i = 0; i < h.length; i++) {
+        const a = h[(i + h.length - 1) % h.length], b = h[i], c = h[(i + 1) % h.length];
+        const dx = c.x - a.x, dy = c.y - a.y, L = Math.hypot(dx, dy) || 1;
+        if (Math.abs((b.x - a.x) * dy - (b.y - a.y) * dx) / L < tol) { h.splice(i, 1); changed = true; break; }
+      }
+    }
+    return h;
+  }
+
+  // alpha silhouette → convex hull, in image px relative to image center
+  function traceHull(img) {
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const k = Math.min(1, 128 / Math.max(iw, ih));
+    const cw = Math.max(1, Math.round(iw * k)), ch = Math.max(1, Math.round(ih * k));
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, cw, ch);
+    const d = g.getImageData(0, 0, cw, ch).data;
+    const pts = [];
+    for (let y = 0; y < ch; y++) {
+      let lo = -1, hi = -1;
+      for (let x = 0; x < cw; x++) if (d[(y * cw + x) * 4 + 3] > 20) { if (lo < 0) lo = x; hi = x; }
+      if (lo >= 0) pts.push([lo, y], [hi + 1, y], [lo, y + 1], [hi + 1, y + 1]);
+    }
+    let hull = pts.length >= 3 ? convexHull(pts) : [];
+    if (hull.length < 3) hull = [[0, 0], [cw, 0], [cw, ch], [0, ch]];
+    const sx = iw / cw, sy = ih / ch;
+    return hull.map(([x, y]) => ({ x: x * sx - iw / 2, y: y * sy - ih / 2 }));
+  }
+
+  function buildObstacleBody(o) {
+    if (o.body) World.remove(engine.world, o.body);
+    const verts = o.hull.map(p => ({ x: p.x * o.sw, y: p.y * o.sh }));
+    o.body = Body.create({
+      position: { x: o.x, y: o.y }, vertices: Vertices.clockwiseSort(verts),
+      angle: o.rot * Math.PI / 180, isStatic: true, friction: 0.4, restitution: 0.1,
+      collisionFilter: { category: 0xFFFFFFFF, mask: 0xFFFFFFFF }   // collides with every depth layer
+    });
+    World.add(engine.world, o.body);
+  }
+
+  function rebuildObstacles() {
+    for (const o of obstacles) { o.gone = false; buildObstacleBody(o); }
+  }
+
+  // any edit invalidates the running sim (coins would hang over a moved obstacle)
+  function touchObs(o, sync) {
+    if (exporting) return;
+    if (coins.length || frozenCoins.length || simT > 0) {
+      clearCoins(); running = false; $('btnPause').textContent = '‖ PAUSE';
+    } else buildObstacleBody(o);
+    if (sync) syncPanel();
+  }
+
+  function addObstacle(img) {
+    if (exporting) return;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    let hull = simplifyHull(traceHull(img), Math.max(iw, ih) * 0.004);
+    let A = 0, cx = 0, cy = 0;
+    for (let i = 0; i < hull.length; i++) {
+      const p = hull[i], q = hull[(i + 1) % hull.length];
+      const cr = p.x * q.y - q.x * p.y;
+      A += cr; cx += (p.x + q.x) * cr; cy += (p.y + q.y) * cr;
+    }
+    A /= 2;
+    if (Math.abs(A) > 1e-6) { cx /= 6 * A; cy /= 6 * A; } else { cx = 0; cy = 0; }
+    hull = hull.map(p => ({ x: p.x - cx, y: p.y - cy }));
+    const bx = Math.max(1, ...hull.map(p => Math.abs(p.x))), by = Math.max(1, ...hull.map(p => Math.abs(p.y)));
+    const R0 = Math.max(1, ...hull.map(p => Math.hypot(p.x, p.y)));
+    const s0 = (Math.min(W, H) * 0.3) / Math.max(iw, ih);
+    const n = obstacles.length;
+    const o = {
+      id: ++obsSeq, img, iw, ih, hull, cx, cy, bx, by, R0,
+      x: W / 2 + n * 40, y: H / 2 + n * 40,
+      sw: s0, sh: s0,
+      rot: 0, visible: true, falls: false, body: null, gone: false
+    };
+    obstacles.push(o);
+    selId = o.id;
+    touchObs(o, false);
+    renderObsList();
+  }
+
+  function removeObstacle(o) {
+    if (exporting) return;
+    if (o.body) World.remove(engine.world, o.body);
+    obstacles = obstacles.filter(x => x !== o);
+    if (selId === o.id) selId = null;
+    if (coins.length || frozenCoins.length || simT > 0) {
+      clearCoins(); running = false; $('btnPause').textContent = '‖ PAUSE';
+    }
+    renderObsList();
+  }
+
+  function renderObsList() {
+    const list = $('obsList');
+    list.innerHTML = '';
+    obstacles.forEach((o, i) => {
+      const b = document.createElement('button');
+      b.textContent = (o.id === selId ? '▶ ' : '') + 'OBSTACLE ' + (i + 1);
+      b.className = o.id === selId ? 'on' : '';
+      b.onclick = () => { selId = o.id; renderObsList(); };
+      list.appendChild(b);
+    });
+    const o = selObs();
+    $('obsPanel').style.display = o ? 'flex' : 'none';
+    if (o) syncPanel();
+  }
+
+  function syncPanel() {
+    const o = selObs();
+    if (!o) return;
+    const set = (k, v) => { $(k).value = v; $(k + 'N').value = v; };
+    set('obsX', Math.round(o.x)); set('obsY', Math.round(o.y));
+    set('obsW', Math.round(o.iw * o.sw)); set('obsH', Math.round(o.ih * o.sh)); set('obsRot', Math.round(o.rot * 10) / 10);
+    $('obsVis').checked = o.visible; $('obsFalls').checked = o.falls;
+  }
+
+  function updateObsRanges() { $('obsX').max = W; $('obsY').max = H; }
+
+  for (const [id, prop] of [['obsX', 'x'], ['obsY', 'y'], ['obsW', 'w'], ['obsH', 'h'], ['obsRot', 'rot']]) {
+    const r = $(id), n = $(id + 'N');
+    const apply = v => {
+      const o = selObs();
+      if (!o || isNaN(v)) return;
+      if (prop === 'w' || prop === 'h') {
+        if (v < 4) return;
+        const ratio = o.sh * o.ih / (o.sw * o.iw);
+        if (prop === 'w') { o.sw = v / o.iw; if ($('obsLock').checked) o.sh = o.sw * o.iw * ratio / o.ih; }
+        else { o.sh = v / o.ih; if ($('obsLock').checked) o.sw = o.sh * o.ih / ratio / o.iw; }
+        touchObs(o, false);
+        if ($('obsLock').checked) syncPanel();
+        return;
+      }
+      o[prop] = v; touchObs(o, false);
+    };
+    r.addEventListener('input', () => { n.value = r.value; apply(parseFloat(r.value)); });
+    n.addEventListener('input', () => { r.value = n.value; apply(parseFloat(n.value)); });
+  }
+  $('obsVis').onchange = e => { const o = selObs(); if (o) o.visible = e.target.checked; };
+  $('obsFalls').onchange = e => { const o = selObs(); if (o) o.falls = e.target.checked; };
+  $('btnObsDel').onclick = () => { const o = selObs(); if (o) removeObstacle(o); };
+
+  const obsInput = document.createElement('input');
+  obsInput.type = 'file'; obsInput.accept = 'image/*';
+  obsInput.onchange = e => {
+    const f = e.target.files[0];
+    obsInput.value = '';
+    if (!f || !f.type.startsWith('image/')) return;
+    const img = new Image();
+    img.onload = () => addObstacle(img);
+    img.src = URL.createObjectURL(f);
+  };
+  $('btnAddObs').onclick = () => obsInput.click();
+
+  // handles for the selected obstacle
+  function obsHandles(o) {
+    const b = o.body, k = W / (canvas.clientWidth || W), a = b.angle, hx = o.bx * o.sw, hy = o.by * o.sh, R = hy;
+    const at = (lx, ly) => ({
+      x: b.position.x + lx * Math.cos(a) - ly * Math.sin(a),
+      y: b.position.y + lx * Math.sin(a) + ly * Math.cos(a)
+    });
+    return { scale: at(hx, hy), rot: at(0, -hy - 30 * k) };
+  }
+
+  // live-canvas-only selection overlay (never drawn into export frames)
+  function drawOverlay(c) {
+    const o = selObs();
+    if (!o || !o.body || o.gone) return;
+    const k = W / (canvas.clientWidth || W), b = o.body, v = b.vertices, h = obsHandles(o);
+    c.save();
+    c.strokeStyle = c.fillStyle = '#53fc18';
+    c.lineWidth = 2 * k;
+    c.setLineDash([8 * k, 6 * k]);
+    c.beginPath(); c.moveTo(v[0].x, v[0].y);
+    for (let i = 1; i < v.length; i++) c.lineTo(v[i].x, v[i].y);
+    c.closePath(); c.stroke();
+    c.setLineDash([]);
+    c.beginPath(); c.moveTo(b.position.x, b.position.y); c.lineTo(h.rot.x, h.rot.y); c.stroke();
+    c.fillRect(h.scale.x - 6 * k, h.scale.y - 6 * k, 12 * k, 12 * k);
+    c.beginPath(); c.arc(h.rot.x, h.rot.y, 7 * k, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+
+  function canvasPt(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+  }
+
+  let drag = null;
+  canvas.addEventListener('mousedown', e => {
+    if (exporting) return;
+    const p = canvasPt(e), k = W / (canvas.clientWidth || W), sel = selObs();
+    if (sel && sel.body && !sel.gone) {
+      const h = obsHandles(sel);
+      if (Math.hypot(p.x - h.rot.x, p.y - h.rot.y) < 14 * k) { drag = { mode: 'rot', o: sel }; e.preventDefault(); return; }
+      if (Math.hypot(p.x - h.scale.x, p.y - h.scale.y) < 14 * k) { drag = { mode: 'scale', o: sel, r: sel.sh / sel.sw }; e.preventDefault(); return; }
+    }
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      if (o.gone || !o.body) continue;
+      if (Vertices.contains(o.body.vertices, p)) {
+        selId = o.id; renderObsList();
+        drag = { mode: 'move', o, dx: p.x - o.x, dy: p.y - o.y };
+        e.preventDefault();
+        return;
+      }
+    }
+    if (selId !== null) { selId = null; renderObsList(); }
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const p = canvasPt(e), o = drag.o;
+    if (drag.mode === 'move') { o.x = p.x - drag.dx; o.y = p.y - drag.dy; }
+    else if (drag.mode === 'scale') {
+      const a = -o.rot * Math.PI / 180, dx = p.x - o.x, dy = p.y - o.y;
+      const lx = Math.abs(dx * Math.cos(a) - dy * Math.sin(a)), ly = Math.abs(dx * Math.sin(a) + dy * Math.cos(a));
+      if ($('obsLock').checked) {
+        const u = Math.max(0.02, (lx / o.bx + ly / (o.by * drag.r)) / 2);
+        o.sw = u; o.sh = u * drag.r;
+      } else { o.sw = Math.max(0.02, lx / o.bx); o.sh = Math.max(0.02, ly / o.by); }
+    }
+    else {
+      const deg = (Math.atan2(p.y - o.y, p.x - o.x) + Math.PI / 2) * 180 / Math.PI;
+      o.rot = ((deg + 540) % 360) - 180;
+    }
+    touchObs(o, true);
+  });
+  window.addEventListener('mouseup', () => { drag = null; });
+  window.addEventListener('keydown', e => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selObs() &&
+        !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) {
+      e.preventDefault(); removeObstacle(selObs());
+    }
+  });
+
+  // ---------------- boot ----------------
+  updateObsRanges();
+  engine.gravity.y = 1;
+  setObject(makeDefaultCoin());
+  fitCanvas();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

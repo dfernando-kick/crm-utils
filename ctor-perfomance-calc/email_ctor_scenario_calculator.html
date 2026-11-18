@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email CTOR Scenario Calculator</title>
+
+<style>
+  /* ==========================================================
+     THEME – change colours here
+     ========================================================== */
+  :root {
+    --text:            #182638;
+    --text-muted:      #586a7e;
+    --page-bg:         #f5f7fb;
+    --panel-bg:        #ffffff;
+    --border:          #e2e8f1;
+    --blue:            #1366b4;
+    --blue-dark:       #0f569b;
+    --blue-text:       #1260a8;
+    --navy-start:      #103e70;   /* results panel gradient */
+    --navy-end:        #152b50;
+    --accent-green:    #5ad3ae;   /* open-share bar */
+
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: var(--page-bg);
+    font-synthesis: none;
+  }
+
+  /* ==========================================================
+     PAGE LAYOUT
+     ========================================================== */
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 32px 18px;
+  }
+
+  .wrap {
+    max-width: 1010px;
+    margin: auto;
+  }
+
+  .intro { margin-bottom: 26px; }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: #526c8f;
+    font-weight: 750;
+  }
+
+  h1 {
+    font-size: clamp(26px, 4vw, 39px);
+    letter-spacing: -.035em;
+    margin: 9px 0 8px;
+  }
+
+  p {
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  /* Two columns: inputs on the left, results on the right */
+  .layout {
+    display: grid;
+    grid-template-columns: 1.03fr .97fr;
+    gap: 20px;
+  }
+
+  /* ==========================================================
+     PANELS (white cards)
+     ========================================================== */
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 25px;
+    box-shadow: 0 5px 22px #172d4810;
+  }
+
+  .panel h2 {
+    font-size: 17px;
+    margin: 0 0 20px;
+  }
+
+  /* ==========================================================
+     INPUT FIELDS (label + number box + slider + help text)
+     ========================================================== */
+  .field { margin-bottom: 23px; }
+
+  .fieldhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 11px;
+  }
+
+  .fieldhead label {
+    font-weight: 650;
+    font-size: 14px;
+  }
+
+  .inputgroup {
+    display: flex;
+    align-items: center;
+    border: 1px solid #cdd6e3;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .inputgroup input {
+    width: 95px;
+    text-align: right;
+    border: 0;
+    outline: 0;
+    padding: 9px 8px;
+    /* NOTE: the original had "font: 650 16px inherit", which browsers reject
+       as invalid, so it never applied. Removed to keep the look identical. */
+    color: #21364c;
+    background: transparent;
+  }
+
+  /* The "%" or "×" unit badge */
+  .inputgroup span {
+    background: #f2f5f9;
+    padding: 10px;
+    color: #617185;
+    border-left: 1px solid #dce3eb;
+    font-size: 13px;
+  }
+
+  .field input[type=range] {
+    width: 100%;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+
+  .help {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #758398;
+    margin-top: 7px;
+  }
+
+  /* ==========================================================
+     RESULTS PANEL (dark blue card)
+     ========================================================== */
+  .result {
+    background: linear-gradient(140deg, var(--navy-start), var(--navy-end));
+    color: #fff;
+    border: 0;
+  }
+
+  .result h2 { color: #d7e8ff; }
+
+  .result .big {
+    font-size: clamp(42px, 6vw, 65px);
+    letter-spacing: -.05em;
+    font-weight: 800;
+    margin: 3px 0;
+  }
+
+  .result .sub {
+    color: #d1e4fb;
+    font-size: 13px;
+  }
+
+  .divider {
+    height: 1px;
+    background: #ffffff36;
+    margin: 22px 0;
+  }
+
+  /* One row of the results list: label on the left, value on the right */
+  .stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #ffffff27;
+    align-items: center;
+  }
+
+  .stat:last-child { border: 0; }
+
+  .stat span {
+    font-size: 13px;
+    color: #d3e3f5;
+  }
+
+  .stat strong {
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Progress bar showing the targeted share of opens */
+  .bar {
+    margin-top: 15px;
+    height: 12px;
+    background: #ffffff3b;
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .bar div {
+    height: 100%;
+    width: 0;                        /* set from JS */
+    background: var(--accent-green);
+    border-radius: 100px;
+    transition: width .15s;
+  }
+
+  /* Orange warning box (hidden until JS has a message to show) */
+  .notice {
+    background: #fff4e2;
+    border: 1px solid #f0d5a4;
+    color: #75511a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 18px;
+    display: none;
+  }
+
+  /* ==========================================================
+     COMPARISON TABLE
+     ========================================================== */
+  .below { margin-top: 20px; }
+  .below h2 { margin-bottom: 9px; }
+
+  .tblscroll { overflow: auto; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 600px;
+  }
+
+  th, td {
+    padding: 12px;
+    text-align: right;
+    border-bottom: 1px solid #e8edf4;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  th:first-child, td:first-child { text-align: left; }
+
+  th {
+    background: #f6f8fb;
+    color: #4b6078;
+    font-size: 12px;
+  }
+
+  tr.selected { background: #e9f4ff; }
+  td strong   { color: var(--blue-text); }
+
+  .footer {
+    margin: 18px 2px 0;
+    font-size: 12px;
+    color: #6e7e90;
+    line-height: 1.6;
+  }
+
+  /* ==========================================================
+     BUTTONS
+     ========================================================== */
+  .buttons {
+    display: flex;
+    gap: 9px;
+    margin-top: 19px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    border: 1px solid #ccdae9;
+    background: #fff;
+    border-radius: 9px;
+    padding: 10px 15px;
+    font-weight: 650;
+    color: #22527f;
+    cursor: pointer;
+  }
+
+  button:hover { background: #eaf3fd; }
+
+  button.primary {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+  }
+
+  button.primary:hover { background: var(--blue-dark); }
+
+  /* ==========================================================
+     MOBILE
+     ========================================================== */
+  @media (max-width: 740px) {
+    .layout { grid-template-columns: 1fr; }  /* stack the two panels */
+    .panel  { padding: 20px; }
+    body    { padding: 20px 12px; }
+  }
+</style>
+</head>
+
+<body>
+<main class="wrap">
+
+  <!-- ========== Page heading ========== -->
+  <div class="intro">
+    <div class="eyebrow">Email marketing · Scenario modelling</div>
+    <h1>CTOR Scenario Calculator</h1>
+    <p>Model the targeted audience size and engagement needed to achieve your desired overall click-to-open rate (CTOR).</p>
+  </div>
+
+  <div class="layout">
+
+    <!-- ========== LEFT: scenario inputs ==========
+         The starting values for these inputs are set in the DEFAULTS
+         object in the <script> below, not here. -->
+    <section class="panel" aria-label="Scenario assumptions">
+      <h2>Scenario assumptions</h2>
+
+      <!-- Weekly emails sent -->
+      <div class="field">
+        <div class="fieldhead">
+          <label for="volume">Weekly emails sent</label>
+          <div class="inputgroup">
+            <input id="volume" type="number" min="1" max="1000000000" step="100000" aria-label="Weekly emails sent">
+          </div>
+        </div>
+        <div class="help">The total send volume stays constant: targeted emails replace general emails.</div>
+      </div>
+
+      <!-- Share of emails that are targeted -->
+      <div class="field">
+        <div class="fieldhead">
+          <label for="audience">Audience receiving targeted emails</label>
+          <div class="inputgroup">
+            <input id="audience" type="number" min="0.1" max="100" step="0.1"><span>%</span>
+          </div>
+        </div>
+        <input id="audienceRange" type="range" min="0.1" max="100" step="0.1">
+        <div class="help" id="audienceHelp"></div>
+      </div>
+
+      <!-- Open rate of the general (non-targeted) emails -->
+      <div class="field">
+        <div class="fieldhead">
+          <label for="avgOpen">Average open rate (general emails)</label>
+          <div class="inputgroup">
+            <input id="avgOpen" type="number" min="0.1" max="100" step="0.1"><span>%</span>
+          </div>
+        </div>
+        <input id="avgOpenRange" type="range" min="0.1" max="100" step="0.1">
+        <div class="help">Open rate of the non-targeted audience. Used as the baseline for the targeted open-rate multiplier.</div>
+      </div>
+
+      <!-- How much better the targeted open rate is -->
+      <div class="field">
+        <div class="fieldhead">
+          <label for="multiplier">Targeted open-rate multiplier</label>
+          <div class="inputgroup">
+            <input id="multiplier" type="number" min="0.1" max="10" step="0.1"><span>×</span>
+          </div>
+        </div>
+        <input id="multiplierRange" type="range" min="0.1" max="10" step="0.1">
+        <div class="help" id="targetOpenHelp"></div>
+      </div>
+
+      <!-- Current CTOR of general emails -->
+      <div class="field">
+        <div class="fieldhead">
+          <label for="baseline">Current general-email CTOR</label>
+          <div class="inputgroup">
+            <input id="baseline" type="number" min="0" max="100" step="0.01"><span>%</span>
+          </div>
+        </div>
+        <input id="baselineRange" type="range" min="0" max="5" step="0.01">
+      </div>
+
+      <!-- The goal -->
+      <div class="field">
+        <div class="fieldhead">
+          <label for="target">Desired overall CTOR</label>
+          <div class="inputgroup">
+            <input id="target" type="number" min="0" max="100" step="0.01"><span>%</span>
+          </div>
+        </div>
+        <input id="targetRange" type="range" min="0" max="5" step="0.01">
+      </div>
+
+      <div class="buttons">
+        <button id="reset">Reset defaults</button>
+        <button class="primary" id="download">Download scenario table (CSV)</button>
+      </div>
+    </section>
+
+    <!-- ========== RIGHT: results ========== -->
+    <section class="panel result" aria-live="polite">
+      <h2>Required targeted CTOR</h2>
+      <div class="big" id="required">—</div>
+      <p class="sub">Targeted cohort CTOR required to achieve your desired overall CTOR.</p>
+
+      <div class="divider"></div>
+
+      <div class="stat"><span>Targeted recipients</span><strong id="users">—</strong></div>
+      <div class="stat"><span>General recipients</span><strong id="generalUsers">—</strong></div>
+      <div class="stat"><span>General email open rate</span><strong id="generalOpen">—</strong></div>
+      <div class="stat"><span>Targeted email open rate</span><strong id="targetOpen">—</strong></div>
+      <div class="stat"><span>Share of all opens from targeted emails</span><strong id="openShare">—</strong></div>
+      <div class="bar" aria-hidden="true"><div id="openBar"></div></div>
+      <div class="stat"><span>Projected total email opens</span><strong id="totalOpens">—</strong></div>
+      <div class="stat"><span>Clicks needed at desired overall CTOR</span><strong id="clicks">—</strong></div>
+      <div class="stat"><span>Extra clicks vs general-email baseline*</span><strong id="extraClicks">—</strong></div>
+
+      <div class="notice" id="notice"></div>
+    </section>
+  </div>
+
+  <!-- ========== Comparison table (rows are built in JS) ========== -->
+  <section class="panel below">
+    <h2>Audience-size scenario comparison</h2>
+    <p style="margin-bottom:18px;font-size:13px">Required targeted CTOR across different audience sizes, using the open rates and CTOR settings above.</p>
+    <div class="tblscroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Targeted share</th>
+            <th>Targeted recipients</th>
+            <th>Targeted share of opens</th>
+            <th>Required targeted CTOR</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="footer">*Incremental clicks compare the scenario against a hypothetical campaign in which all emails keep the general-email open rate and baseline CTOR. Assumes one sent email per recipient, open rates are measured consistently, and targeted/general cohorts do not overlap. CTOR = unique clicks ÷ unique opens. Open counts may be affected by email privacy protections.</p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ==========================================================
+     CONFIG – the things you are most likely to want to edit
+     ========================================================== */
+
+  // Starting values for each input (also used by the "Reset defaults" button).
+  const DEFAULTS = {
+    volume:     30000000,  // weekly emails sent
+    audience:   10,        // % of emails that are targeted
+    avgOpen:    20,        // % open rate of general emails
+    multiplier: 1.5,       // targeted open rate = avgOpen × multiplier
+    baseline:   0.86,      // % CTOR of general emails today
+    target:     1,         // % overall CTOR we want to reach
+  };
+
+  // Audience sizes (%) shown as rows in the comparison table and CSV.
+  // The currently selected audience is added automatically if it isn't listed.
+  const TABLE_AUDIENCE_SIZES = [1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+
+  // Number formatting (thousands separators etc.)
+  const LOCALE = 'en-AU';
+
+  const CSV_FILENAME = 'ctor_scenario_comparison.csv';
+
+
+  /* ==========================================================
+     SETUP – look up page elements
+     ========================================================== */
+
+  const $ = id => document.getElementById(id);
+
+  // The inputs that make up a scenario.
+  const INPUT_IDS = Object.keys(DEFAULTS);
+
+  // Inputs that also have a slider, mapped to the slider's element id.
+  const SLIDER_IDS = {
+    audience:   'audienceRange',
+    avgOpen:    'avgOpenRange',
+    multiplier: 'multiplierRange',
+    baseline:   'baselineRange',
+    target:     'targetRange',
+  };
+
+
+  /* ==========================================================
+     HELPERS
+     ========================================================== */
+
+  // 1234567.8 -> "1,234,568"
+  const formatNumber = n => Math.round(n).toLocaleString(LOCALE);
+
+  // 1.234 -> "1.23%"  (shows "—" if the value isn't a real number)
+  const formatPercent = n => Number.isFinite(n) ? n.toFixed(2) + '%' : '—';
+
+  // Required CTOR can be NaN when there are no targeted opens.
+  const formatRequiredCtor = n => Number.isFinite(n) ? formatPercent(n) : 'N/A';
+
+  // Keep a number between min and max.
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  // Read every input, force it to a number, and keep it inside the
+  // min/max set on the <input> tag in the HTML.
+  function getSettings() {
+    const settings = {};
+    for (const id of INPUT_IDS) {
+      const input = $(id);
+      let value = Number(input.value);
+      if (!Number.isFinite(value)) value = 0;
+      settings[id] = clamp(value, Number(input.min || 0), Number(input.max || Infinity));
+    }
+    return settings;
+  }
+
+  // Audience sizes for the table/CSV: the standard list + the selected one.
+  function getAudienceSizes(settings) {
+    const sizes = [...TABLE_AUDIENCE_SIZES];
+    if (!sizes.includes(settings.audience)) sizes.push(settings.audience);
+    return sizes.sort((a, b) => a - b);
+  }
+
+
+  /* ==========================================================
+     THE MATHS
+     ==========================================================
+     Overall CTOR is the average of the two cohorts' CTORs, weighted by
+     how many opens each cohort produces:
+
+       overall = weight × targetedCtor + (1 − weight) × generalCtor
+
+     where  weight = targetedOpens / totalOpens
+
+     We know the overall CTOR we want, so we solve for targetedCtor:
+
+       targetedCtor = (desiredOverall − (1 − weight) × generalCtor) / weight
+  */
+  function calculateScenario(settings, targetedSharePct) {
+    const targetedShare = targetedSharePct / 100;   // e.g. 10% -> 0.10
+    const emailsSent    = settings.volume;
+
+    // Open rates as fractions (20% -> 0.20). Targeted rate can't exceed 100%.
+    const generalOpenRate  = settings.avgOpen / 100;
+    const targetedOpenRate = clamp(generalOpenRate * settings.multiplier, 0, 1);
+
+    // Number of opens from each cohort
+    const targetedOpens = emailsSent * targetedShare       * targetedOpenRate;
+    const generalOpens  = emailsSent * (1 - targetedShare) * generalOpenRate;
+    const totalOpens    = targetedOpens + generalOpens;
+
+    // Fraction of all opens that come from targeted emails
+    const targetedOpenWeight = totalOpens > 0 ? targetedOpens / totalOpens : 0;
+
+    // The answer: CTOR (in %) the targeted cohort must achieve
+    const requiredTargetedCtor = targetedOpenWeight > 0
+      ? (settings.target - (1 - targetedOpenWeight) * settings.baseline) / targetedOpenWeight
+      : NaN;
+
+    return {
+      generalOpenRate,
+      targetedOpenRate,
+      targetedOpens,
+      generalOpens,
+      totalOpens,
+      targetedOpenWeight,
+      requiredTargetedCtor,
+      // Clicks needed across all opens to hit the desired overall CTOR
+      clicksNeeded: totalOpens * settings.target / 100,
+      // Clicks if every email just behaved like a general email
+      baselineClicks: emailsSent * generalOpenRate * settings.baseline / 100,
+    };
+  }
+
+
+  /* ==========================================================
+     RENDERING – push the numbers into the page
+     ========================================================== */
+
+  // Left-hand help text + the right-hand results panel
+  function renderSummary(settings, result) {
+    const targetedRecipients = settings.volume * settings.audience / 100;
+    const generalRecipients  = settings.volume * (1 - settings.audience / 100);
+    const extraClicks        = result.clicksNeeded - result.baselineClicks;
+
+    // Help text under the inputs
+    $('audienceHelp').textContent =
+      formatNumber(targetedRecipients) + ' of ' + formatNumber(settings.volume) + ' total emails';
+
+    const openRateIsCapped = result.generalOpenRate * settings.multiplier > 1;
+    $('targetOpenHelp').textContent =
+      'Targeted open rate: ' + formatPercent(result.targetedOpenRate * 100) +
+      (openRateIsCapped ? ' (capped at 100%)' : '');
+
+    // Results panel
+    $('required').textContent     = formatRequiredCtor(result.requiredTargetedCtor);
+    $('users').textContent        = formatNumber(targetedRecipients);
+    $('generalUsers').textContent = formatNumber(generalRecipients);
+    $('generalOpen').textContent  = formatPercent(settings.avgOpen);
+    $('targetOpen').textContent   = formatPercent(result.targetedOpenRate * 100);
+    $('openShare').textContent    = formatPercent(result.targetedOpenWeight * 100);
+    $('openBar').style.width      = (result.targetedOpenWeight * 100).toFixed(2) + '%';
+    $('totalOpens').textContent   = formatNumber(result.totalOpens);
+    $('clicks').textContent       = formatNumber(result.clicksNeeded);
+    $('extraClicks').textContent  = (extraClicks >= 0 ? '+' : '') + formatNumber(extraClicks);
+  }
+
+  // Orange warning box under the results
+  function renderNotice(settings, result) {
+    let message = '';
+
+    if (result.requiredTargetedCtor > 100) {
+      message = 'This target is mathematically unattainable under these assumptions: targeted CTOR would need to exceed 100%.';
+    } else if (result.requiredTargetedCtor < 0) {
+      message = 'The target is already exceeded by the general audience contribution. A non-negative targeted CTOR will produce a combined CTOR above the selected target.';
+    }
+
+    if (settings.avgOpen * settings.multiplier > 100) {
+      message += (message ? ' ' : '') + 'Targeted open rate is capped at 100%.';
+    }
+
+    $('notice').style.display = message ? 'block' : 'none';
+    $('notice').textContent = message;
+  }
+
+  // The audience-size comparison table
+  function renderTable(settings) {
+    const rows = getAudienceSizes(settings).map(sizePct => {
+      const result     = calculateScenario(settings, sizePct);
+      const isSelected = Math.abs(sizePct - settings.audience) < 0.00001;
+
+      const shareLabel = sizePct.toLocaleString(LOCALE) + '%' + (isSelected ? ' (selected)' : '');
+
+      return `
+        <tr${isSelected ? ' class="selected"' : ''}>
+          <td>${isSelected ? `<strong>${shareLabel}</strong>` : shareLabel}</td>
+          <td>${formatNumber(settings.volume * sizePct / 100)}</td>
+          <td>${formatPercent(result.targetedOpenWeight * 100)}</td>
+          <td><strong>${formatRequiredCtor(result.requiredTargetedCtor)}</strong></td>
+        </tr>`;
+    });
+
+    $('tableBody').innerHTML = rows.join('');
+  }
+
+  // Redraw everything. Called whenever any input changes.
+  function render() {
+    const settings = getSettings();
+    const result   = calculateScenario(settings, settings.audience);
+
+    renderSummary(settings, result);
+    renderNotice(settings, result);
+    renderTable(settings);
+  }
+
+
+  /* ==========================================================
+     CSV DOWNLOAD
+     ========================================================== */
+  function downloadCsv() {
+    const settings = getSettings();
+
+    const rows = [[
+      'Targeted share (%)',
+      'Targeted recipients',
+      'General open rate (%)',
+      'Targeted open rate (%)',
+      'Targeted share of opens (%)',
+      'General CTOR (%)',
+      'Desired overall CTOR (%)',
+      'Required targeted CTOR (%)',
+    ]];
+
+    for (const sizePct of getAudienceSizes(settings)) {
+      const result = calculateScenario(settings, sizePct);
+      rows.push([
+        sizePct,
+        Math.round(settings.volume * sizePct / 100),
+        settings.avgOpen,
+        (result.targetedOpenRate * 100).toFixed(4),
+        (result.targetedOpenWeight * 100).toFixed(4),
+        settings.baseline,
+        settings.target,
+        Number.isFinite(result.requiredTargetedCtor) ? result.requiredTargetedCtor.toFixed(4) : 'N/A',
+      ]);
+    }
+
+    const csv  = rows.map(row => row.join(',')).join('\r\n');
+    const url  = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = CSV_FILENAME;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  }
+
+
+  /* ==========================================================
+     EVENTS
+     ========================================================== */
+
+  // Put the starting values into the inputs and sliders.
+  function applyDefaults() {
+    for (const [id, value] of Object.entries(DEFAULTS)) {
+      $(id).value = value;
+      if (SLIDER_IDS[id]) $(SLIDER_IDS[id]).value = value;
+    }
+  }
+
+  // Keep each number box and its slider in step, and redraw on any change.
+  for (const id of INPUT_IDS) {
+    const numberInput = $(id);
+    const slider = SLIDER_IDS[id] ? $(SLIDER_IDS[id]) : null;
+
+    numberInput.addEventListener('input', () => {
+      if (slider) {
+        // The box can hold values outside the slider's range; clamp for the slider.
+        slider.value = clamp(Number(numberInput.value) || 0, Number(slider.min), Number(slider.max));
+      }
+      render();
+    });
+
+    if (slider) {
+      slider.addEventListener('input', () => {
+        numberInput.value = slider.value;
+        render();
+      });
+    }
+  }
+
+  $('reset').addEventListener('click', () => {
+    applyDefaults();
+    render();
+  });
+
+  $('download').addEventListener('click', downloadCsv);
+
+
+  /* ==========================================================
+     START
+     ========================================================== */
+  applyDefaults();
+  render();
+})();
+</script>
+</body>
+</html>
